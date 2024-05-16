@@ -9,13 +9,40 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.koin.dsl.module
+import org.koin.ktor.ext.inject
 
 @Serializable
-data class Data(val value: Int, val text: String)
+data class Data(val id: Int, val text: String)
 
-var dataList = mutableListOf<Data>()
+interface DataRepository {
+    fun findAll(): MutableList<Data>
+    fun save(data: Data): Boolean
+    fun find(id: Int): Data?
+    fun delete(data: Data): Boolean
+}
 
-fun Application.configureRouting() {
+object DataRepositoryImpl : DataRepository {
+
+    private var storage = mutableListOf<Data>()
+
+    override fun findAll() = storage
+
+    override fun save(data: Data) = storage.add(data)
+
+    override fun find(id: Int) = storage.find { it.id == id }
+
+    override fun delete(data: Data) = storage.remove(data)
+}
+
+val dataModule = module {
+    single<DataRepository> { DataRepositoryImpl }
+}
+
+fun Application.dataController() {
+
+    val repository by inject<DataRepository>()
+
     install(ContentNegotiation) {
         json(Json {
             prettyPrint = true
@@ -29,19 +56,19 @@ fun Application.configureRouting() {
         }
 
         get("/data") {
-            call.respond<MutableList<Data>>(dataList)
+            call.respond<MutableList<Data>>(repository.findAll())
         }
 
         post("/data") {
             val data = call.receive<Data>()
-            dataList.add(data)
+            repository.save(data)
             call.respond<String>(status = HttpStatusCode.Created, message = "Data added successfully")
         }
 
         get("/data/{id}") {
             val id = call.parameters["id"]?.toInt()
             id?.let {
-                val data = dataList.find { it.value == id }
+                val data = repository.find(id)
                 if (data != null) {
                     call.respond<Data>(data)
                 } else {
@@ -52,10 +79,10 @@ fun Application.configureRouting() {
 
         put("/data") {
             val newData = call.receive<Data>()
-            val oldData = dataList.find { it.value == newData.value }
+            val oldData = repository.find(newData.id)
             if (oldData != null) {
-                dataList.remove(oldData)
-                dataList.add(newData)
+                repository.delete(oldData)
+                repository.save(newData)
                 call.respond<String>(status = HttpStatusCode.OK, message = "Data updated successfully")
             } else {
                 call.respond<String>(status = HttpStatusCode.NotFound, message = "Data to update not found")
@@ -65,9 +92,9 @@ fun Application.configureRouting() {
         delete("/data/{id}") {
             val id = call.parameters["id"]?.toInt()
             id?.let {
-                val data = dataList.find { it.value == id }
+                val data = repository.find(id)
                 if (data != null) {
-                    dataList.remove(data)
+                    repository.delete(data)
                     call.respond<String>(status = HttpStatusCode.OK, message = "Data deleted successfully")
                 } else {
                     call.respond<String>(status = HttpStatusCode.NotFound, message = "Data to delete not found")
@@ -76,4 +103,5 @@ fun Application.configureRouting() {
         }
     }
 }
+
 
