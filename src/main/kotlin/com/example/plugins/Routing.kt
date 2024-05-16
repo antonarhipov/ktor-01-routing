@@ -15,6 +15,10 @@ import org.koin.ktor.ext.inject
 @Serializable
 data class Data(val id: Int, val text: String)
 
+val dataModule = module {
+    single<DataRepository> { DataRepositoryImpl }
+}
+
 interface DataRepository {
     fun findAll(): MutableList<Data>
     fun save(data: Data): Boolean
@@ -23,20 +27,11 @@ interface DataRepository {
 }
 
 object DataRepositoryImpl : DataRepository {
-
     private var storage = mutableListOf<Data>()
-
     override fun findAll() = storage
-
     override fun save(data: Data) = storage.add(data)
-
     override fun find(id: Int) = storage.find { it.id == id }
-
     override fun delete(data: Data) = storage.remove(data)
-}
-
-val dataModule = module {
-    single<DataRepository> { DataRepositoryImpl }
 }
 
 fun Application.dataController() {
@@ -103,5 +98,3 @@ fun Application.dataController() {
         }
     }
 }
-
-
